@@ -1,3 +1,4 @@
+#30 April 2024 Add libaec
 #20 March 2024 This file was modified by Mapbox 
 #Copyright © 2024 Mapbox, Inc. All rights reserved.
 
@@ -14,6 +15,7 @@ EXPAT_VERSION = 2.6.0
 ICONV_VERSION = 1.17
 JPEG_VERSION = 2.5.2
 JPEG_VERSION_BASE = $(shell echo $(JPEG_VERSION) | cut -d '.' -f1,2)
+LIBAEC_VERSION = 1.1.3
 
 SQLITE_URL = "https://www.sqlite.org/2024/sqlite-autoconf-$(SQLITE_VERSION).tar.gz"
 PROJ_URL = "http://download.osgeo.org/proj/proj-$(PROJ_VERSION).tar.gz"
@@ -27,6 +29,7 @@ WEBP_URL = "https://storage.googleapis.com/downloads.webmproject.org/releases/we
 EXPAT_URL = "https://github.com/libexpat/libexpat/releases/download/R_$(subst .,_,$(EXPAT_VERSION))/expat-${EXPAT_VERSION}.tar.gz"
 ICONV_URL = "https://ftp.gnu.org/pub/gnu/libiconv/libiconv-${ICONV_VERSION}.tar.gz"
 JPEG_URL = "https://github.com/uclouvain/openjpeg/archive/refs/tags/v${JPEG_VERSION}.tar.gz"
+LIBAEC_URL = "https://github.com/MathisRosenhauer/libaec/archive/refs/tags/v${LIBAEC_VERSION}.tar.gz"
 
 PWD = $(shell pwd)
 SRC_DIR = build/native/src
@@ -67,7 +70,7 @@ $(DIST_DIR)/gdal3WebAssembly.js: $(ROOT_DIR)/lib/libgdal.a
 		$(ROOT_DIR)/lib/libproj.a $(ROOT_DIR)/lib/libsqlite3.a $(ROOT_DIR)/lib/libz.a $(ROOT_DIR)/lib/libspatialite.a \
 		$(ROOT_DIR)/lib/libgeos.a $(ROOT_DIR)/lib/libgeos_c.a $(ROOT_DIR)/lib/libwebp.a $(ROOT_DIR)/lib/libsharpyuv.a $(ROOT_DIR)/lib/libwebpdemux.a \
 		$(ROOT_DIR)/lib/libexpat.a $(ROOT_DIR)/lib/libtiffxx.a $(ROOT_DIR)/lib/libtiff.a $(ROOT_DIR)/lib/libgeotiff.a \
-        $(ROOT_DIR)/lib/libiconv.a $(ROOT_DIR)/lib/libopenjp2.a \
+        $(ROOT_DIR)/lib/libiconv.a $(ROOT_DIR)/lib/libopenjp2.a $(ROOT_DIR)/lib/libaec.a \
 		-o $@ $(GDAL_EMCC_FLAGS) \
 		--preload-file $(ROOT_DIR)/share/gdal@/usr/share/gdal \
 		--preload-file $(ROOT_DIR)/share/proj@/usr/share/proj;
@@ -76,7 +79,7 @@ $(ROOT_DIR)/lib/libgdal.a: $(GDAL_SRC)/build/Makefile
 	cd $(GDAL_SRC)/build; \
 	$(EMMAKE) make -j4 install;
 
-$(GDAL_SRC)/build/Makefile: $(ROOT_DIR)/lib/libsqlite3.a $(ROOT_DIR)/lib/libproj.a $(ROOT_DIR)/lib/libgeotiff.a $(ROOT_DIR)/lib/libwebp.a $(ROOT_DIR)/lib/libexpat.a $(ROOT_DIR)/lib/libspatialite.a $(ROOT_DIR)/lib/libiconv.a $(ROOT_DIR)/lib/libopenjp2.a $(ROOT_DIR)/include/linux/fs.h $(GDAL_SRC)/CMakeLists.txt
+$(GDAL_SRC)/build/Makefile: $(ROOT_DIR)/lib/libsqlite3.a $(ROOT_DIR)/lib/libproj.a $(ROOT_DIR)/lib/libgeotiff.a $(ROOT_DIR)/lib/libwebp.a $(ROOT_DIR)/lib/libexpat.a $(ROOT_DIR)/lib/libspatialite.a $(ROOT_DIR)/lib/libiconv.a $(ROOT_DIR)/lib/libopenjp2.a $(ROOT_DIR)/lib/libaec.a $(ROOT_DIR)/include/linux/fs.h $(GDAL_SRC)/CMakeLists.txt
 	cd $(GDAL_SRC); \
 	sed -i 's/ iconv_open/ libiconv_open/g' ./port/cpl_recode_iconv.cpp; \
     sed -i 's/        iconv/        libiconv/g' ./port/cpl_recode_iconv.cpp; \
@@ -100,7 +103,8 @@ $(GDAL_SRC)/build/Makefile: $(ROOT_DIR)/lib/libsqlite3.a $(ROOT_DIR)/lib/libproj
         -DWEBP_INCLUDE_DIR=$(ROOT_DIR)/include -DWEBP_LIBRARY=$(ROOT_DIR)/lib/libwebp.a \
         -DEXPAT_INCLUDE_DIR=$(ROOT_DIR)/include -DEXPAT_LIBRARY=$(ROOT_DIR)/lib/libexpat.a \
         -DIconv_INCLUDE_DIR=$(ROOT_DIR)/include -DIconv_LIBRARY=$(ROOT_DIR)/lib/libiconv.a \
-		-DOPENJPEG_INCLUDE_DIR=$(ROOT_DIR)/include/openjpeg-${JPEG_VERSION_BASE} -DOPENJPEG_LIBRARY=$(ROOT_DIR)/lib/libopenjp2.a;
+		-DOPENJPEG_INCLUDE_DIR=$(ROOT_DIR)/include/openjpeg-${JPEG_VERSION_BASE} -DOPENJPEG_LIBRARY=$(ROOT_DIR)/lib/libopenjp2.a \
+		-DLIBAEC_INCLUDE_DIR=$(ROOT_DIR)/include -DLIBAEC_LIBRARY=$(ROOT_DIR)/lib/libaec.a;
 
 $(ROOT_DIR)/include/linux/fs.h:
 	mkdir -p $(ROOT_DIR)/include/linux; \
@@ -191,6 +195,29 @@ $(JPEG_SRC)/CMakeLists.txt:
 	cd $(SRC_DIR); \
 	wget -nc $(JPEG_URL); \
 	tar -xf v$(JPEG_VERSION).tar.gz;
+
+########
+# LIBAEC #
+########
+LIBAEC_SRC = $(SRC_DIR)/libaec-$(LIBAEC_VERSION)
+
+libaec: $(ROOT_DIR)/lib/libaec.a
+
+$(ROOT_DIR)/lib/libaec.a: $(LIBAEC_SRC)/build/Makefile
+	cd $(LIBAEC_SRC)/build; \
+	$(EMMAKE) make -j4 install;
+
+$(LIBAEC_SRC)/build/Makefile: $(LIBAEC_SRC)/CMakeLists.txt
+	cd $(LIBAEC_SRC); \
+    mkdir build; \
+	cd build; \
+	$(EMCMAKE) cmake .. $(PREFIX_CMAKE) -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF;
+
+$(LIBAEC_SRC)/CMakeLists.txt:
+	mkdir -p $(SRC_DIR); \
+	cd $(SRC_DIR); \
+	wget -nc $(LIBAEC_URL); \
+	tar -xf v$(LIBAEC_VERSION).tar.gz;
 
 
 ###########
